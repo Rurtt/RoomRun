@@ -27,7 +27,7 @@ test('stop running from start gap -> caught in 3-4 s', () => {
   const { events, t } = runUntil(w, idle, (e) => e.includes('caught'), 10);
   expect(t).toBeGreaterThan(3); expect(t).toBeLessThan(4);
   expect(w.phase).toBe('caught'); expect(count(events, 'caught')).toBe(1);
-  expect(w.lastRun).toEqual({ distance: 0, coins: 0, score: 0, bestCombo: 0, nearMisses: 0 });
+  expect(w.lastRun).toEqual({ distance: 0, coins: 0, score: 0 });
 });
 
 test('caught world does nothing more', () => {
@@ -325,7 +325,7 @@ test('late lane dodge past an obstacle = near-miss with bonus coins', () => {
   // full speed: the cart is ~0.8 s away; dodge right ~0.3 s before it
   const { events } = run(w, (t) => (t > 0.5 && t < 0.51 ? frame({ speed: 1, laneDelta: 1 }) : sprint), 1.5);
   expect(events).toContain('near-miss'); expect(events).not.toContain('hit');
-  expect(w.coins).toBe(config.nearMiss.bonusCoins); expect(w.nearMisses).toBe(1); expect(w.combo).toBe(1);
+  expect(w.coins).toBe(config.nearMiss.bonusCoins); expect(w.combo).toBe(1);
 });
 
 test('early lane change is a clean pass, not a near-miss', () => {
@@ -351,7 +351,7 @@ test('combo counts rows, multiplies coins, breaks on a hit', () => {
   expect(w.coins).toBe(2); // x2
   w.track.obstacles.push(obsAt('cart', w.player.distance + 3, 0));
   const hit = run(w, sprint, 0.5);
-  expect(hit.events).toContain('combo-break'); expect(w.combo).toBe(0); expect(w.bestCombo).toBe(5);
+  expect(hit.events).toContain('combo-break'); expect(w.combo).toBe(0);
 });
 
 test('a row with one obstacle hit does not count for the combo', () => {
@@ -365,4 +365,27 @@ test('score = whole metres + coins, saved on caught', () => {
   const w = createWorld(emptyCfg(), 1); startRun(w); run(w, sprint, 1); w.coins = 7;
   runUntil(w, idle, (e) => e.includes('caught'), 20);
   expect(w.lastRun.score).toBe(Math.floor(w.lastRun.distance) + 7);
+});
+
+test('jump near-miss also works at a jogging pace (60% speed), not only at full sprint', () => {
+  // at 7.2 m/s a clearing jump must take off >= ~0.32 s before the dog passes; the window must reach past that
+  const jog = frame({ speed: 0.6 });
+  let nears = 0, clears = 0;
+  for (let at = 1.5; at < 2.6; at += 0.02) {
+    const w = createWorld(emptyCfg(), 1); startRun(w); w.track.obstacles.push(obsAt('dog', 20));
+    const { events } = run(w, (t) => (t >= at && t < at + DT ? frame({ speed: 0.6, jump: true }) : jog), 4);
+    if (!events.includes('hit')) { clears++; if (events.includes('near-miss')) nears++; }
+  }
+  expect(clears).toBeGreaterThan(5);
+  expect(nears).toBeGreaterThan(clears / 4); // late clearing jumps count
+  expect(nears).toBeLessThan(clears);        // early ones don't
+});
+
+test('no near-miss for a dodge in a row where the kid hit the other obstacle', () => {
+  const w = createWorld(emptyCfg(), 1); startRun(w);
+  w.player.lane = 0; w.player.x = 0;
+  w.track.obstacles.push(obsAt('cart', 10, 0), obsAt('cart', 10, 1));
+  // dodge right at the last moment: leaves the lane-0 cart, runs into the lane-1 cart
+  const { events } = run(w, (t) => (t > 0.5 && t < 0.51 ? frame({ speed: 1, laneDelta: 1 }) : sprint), 1.5);
+  expect(events).toContain('hit'); expect(events).not.toContain('near-miss');
 });

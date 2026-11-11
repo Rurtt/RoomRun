@@ -1,7 +1,7 @@
 import { test, expect } from 'vitest';
 import { AVATARS, SIZE, clean, qualifies, insert, createLeaderboard } from '../src/leaderboard.js';
 
-const e = (score, at = score, avatar = 0) => ({ avatar, score, distance: score, coins: 0, at });
+const e = (score, at = score, avatar = 0) => ({ avatar, score, at });
 const memory = () => { const m = new Map(); return { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => m.set(k, v) }; };
 
 test('clean sorts best first, keeps 5, drops junk', () => {

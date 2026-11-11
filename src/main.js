@@ -57,7 +57,7 @@ function signRun(avatar) {
   if (!pick.picking || world.phase !== 'caught' || !world.lastRun) return;
   if (performance.now() - pick.caughtAt < PICK_DELAY_MS) return;
   const r = world.lastRun;
-  pick.rank = board.add({ avatar, score: r.score, distance: Math.floor(r.distance), coins: r.coins, at: Date.now() });
+  pick.rank = board.add({ avatar, score: r.score, at: Date.now() });
   pick.picking = false;
   audio.play('escape');
 }

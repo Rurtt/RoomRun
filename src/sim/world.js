@@ -30,13 +30,11 @@ export function createWorld(cfg = config, seed = Date.now()) {
     /** @type {{ phase: 'idle'|'warning'|'active', t: number, nextAt: number, count: number }} t = seconds left in phase */
     chase: { phase: 'idle', t: 0, nextAt: cfg.chase.firstAt, count: 0 },
     track: createTrack(cfg.track, rng),
-    /** rows passed in a row without a hit, and the best this run */
+    /** rows passed in a row without a hit */
     combo: 0,
-    bestCombo: 0,
-    nearMisses: 0,
     /** z of the last row counted for the combo */
     lastPassZ: -Infinity,
-    /** @type {{ distance: number, coins: number, score: number, bestCombo: number, nearMisses: number } | null} */
+    /** @type {{ distance: number, coins: number, score: number } | null} */
     lastRun: null,
     /** @type {{ kind: string, distance: number } | null} latest obstacle hit, for effects */
     lastHit: null,
@@ -76,8 +74,6 @@ export function startRun(world) {
   world.chaser = { gap: cfg.chaser.startGap, speedMps: cfg.chaser.speed, angry: false, visible: cfg.chaser.startGap < cfg.chaser.visibleGap };
   world.chase = { phase: 'idle', t: 0, nextAt: cfg.chase.firstAt, count: 0 };
   world.combo = 0;
-  world.bestCombo = 0;
-  world.nearMisses = 0;
   world.lastPassZ = -Infinity;
   world.track = createTrack(cfg.track, world.rng);
   updateTrack(world.track, 0, 0);
@@ -219,8 +215,7 @@ export function stepWorld(world, input, dt) {
     ch.gap = 0;
     ch.visible = true;
     world.phase = 'caught';
-    world.lastRun = { distance: p.distance, coins: world.coins, score: scoreOf(p.distance, world.coins),
-      bestCombo: world.bestCombo, nearMisses: world.nearMisses };
+    world.lastRun = { distance: p.distance, coins: world.coins, score: scoreOf(p.distance, world.coins) };
     events.push('caught');
     return events;
   }
@@ -275,15 +270,13 @@ function passRows(world, events) {
       world.lastPassZ = o.z;
       const before = multiplierFor(world.combo, nm);
       world.combo++;
-      world.bestCombo = Math.max(world.bestCombo, world.combo);
       if (multiplierFor(world.combo, nm) > before) events.push('combo-up');
     }
     const dodged = o.lane === p.laneFrom && o.lane !== p.lane && world.runTime - p.laneT <= nm.laneWindow;
     const jumped = o.type === 'jump' && o.lane === p.lane && world.runTime - p.jumpT <= nm.jumpWindow;
-    if (dodged || jumped) near = true;
+    if (!rowHit && (dodged || jumped)) near = true;
   }
   if (near) {
-    world.nearMisses++;
     world.coins += nm.bonusCoins * multiplierFor(world.combo, nm);
     events.push('near-miss');
   }

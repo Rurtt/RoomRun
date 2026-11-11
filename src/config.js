@@ -19,7 +19,7 @@ export default {
              cartCoinLoss: 10, tuktukStun: 2, packIntroTime: 2, packSize: 3 },
   // Near-miss: leave an obstacle's lane (or jump it) this late = เฉียด! + bonus coins.
   // Combo: rows passed without a hit; every comboStep rows the coin multiplier goes up by 1.
-  nearMiss: { laneWindow: 0.5, jumpWindow: 0.35, bonusCoins: 5, comboStep: 5, maxMultiplier: 5 },
+  nearMiss: { laneWindow: 0.5, jumpWindow: 0.45, bonusCoins: 5, comboStep: 5, maxMultiplier: 5 },
   // last ~0.6 s before a catch the game runs at slowMoScale (the grab reads on video)
   juice: { slowMoScale: 0.7, slowMoWindow: 0.6, slowMoMaxGap: 4 },
   // Phone/stick arm-swing detection, m/s^2 with gravity removed. Tuned from logs (scripts/replay.mjs).

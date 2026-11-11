@@ -13,8 +13,7 @@ export default {
   combo: (m) => `x${m}`,
   comboLost: 'คอมโบหลุด',
   board: {
-    title: 'อันดับวันนี้',
-    empty: 'ยังไม่มีใครวิ่ง',
+    title: 'อันดับสูงสุด',
     score: (n) => `คะแนน ${n}`,             // n already formatted
     pickHead: 'ติดอันดับ! เลือกตัวละคร',
     pickHint: 'แตะเลือก · ปุ่มใหญ่ = เลื่อน · ปุ่มเล็ก = ตกลง',

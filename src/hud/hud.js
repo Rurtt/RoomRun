@@ -114,7 +114,7 @@ export function createHud(root, cfg = config, opts = {}) {
       const a = AVATARS[e.avatar];
       return `<li class="${i === rank ? 'me' : ''}"><b>${i + 1}</b><span class="icon">${a.icon}</span><span class="n">${a.name}</span><span class="s">${e.score.toLocaleString('en-US')}</span></li>`;
     }).join('');
-    return `<div class="txt head">${strings.board.title}</div><ol>${rows || `<li class="empty">${strings.board.empty}</li>`}</ol>`;
+    return `<div class="txt head">${strings.board.title}</div><ol>${rows}</ol>`;
   }
   let cornerTimer = 0;
   let lastCount = -1;

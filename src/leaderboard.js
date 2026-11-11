@@ -10,7 +10,7 @@ export const AVATARS = [
   { icon: '🐸', name: 'กบ' }, { icon: '🐵', name: 'ลิง' }, { icon: '🐔', name: 'ไก่' }, { icon: '🐢', name: 'เต่า' },
 ];
 
-/** @typedef {{ avatar: number, score: number, distance: number, coins: number, at: number }} Entry */
+/** @typedef {{ avatar: number, score: number, at: number }} Entry */
 
 /** @param {any} raw @returns {Entry[]} best first, at most SIZE, junk dropped */
 export function clean(raw) {
