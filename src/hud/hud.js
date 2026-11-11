@@ -6,6 +6,8 @@ import config from '../config.js';
 import strings from '../strings.js';
 import { formatMeters, meterFill, chaseSeconds } from './format.js';
 import { eyeColor } from '../render/chaserView.js';
+import { multiplierFor } from '../sim/world.js';
+import { AVATARS } from '../leaderboard.js';
 
 /** Boss dog face (CSS only): dark head, torn left ear, amber eyes (red when close), tan muzzle. */
 const DOG_FACE = '<div class="dog-face"><i class="ear l"></i><i class="ear r"></i><b></b><b></b><s></s></div>';
@@ -13,15 +15,22 @@ const DOG_FACE = '<div class="dog-face"><i class="ear l"></i><i class="ear r"></
 const HEEL_FACE = '<div class="dog-face heel"><i class="ear l"></i><i class="ear r"></i><b></b><b></b><s></s></div>';
 
 /**
+ * @typedef {{ list: import('../leaderboard.js').Entry[], rank: number, picking: boolean, sel: number }} BoardView
+ *   rank = this run's place (-1 none); picking = avatar picker open; sel = highlighted avatar
+ */
+
+/**
  * @param {HTMLElement} root
  * @param {typeof config} cfg
+ * @param {{ onPick?: (avatar: number) => void }} [opts]
  */
-export function createHud(root, cfg = config) {
+export function createHud(root, cfg = config, opts = {}) {
   root.id = 'hud';
   root.innerHTML = `
     <div class="play">
       <div class="txt distance"></div>
       <div class="txt coins"><i></i><span></span></div>
+      <div class="txt combo hidden"></div>
       <div class="meter"><div class="fill"></div><div class="face">${DOG_FACE}</div></div>
       <div class="heel-icons"></div>
       <div class="txt gap"></div>
@@ -37,12 +46,20 @@ export function createHud(root, cfg = config) {
       <div class="txt alt hidden"></div>
       <ul class="howto hidden"></ul>
       <div class="qr hidden"><canvas></canvas><span class="txt"></span></div>
+      <div class="board title-board hidden"></div>
     </div>
     <div class="screen caught-screen hidden">
-      <div class="txt big"></div>
-      <div class="stats"><div class="txt d"></div><div class="txt c"></div></div>
-      <div class="txt again"></div>
-      <div class="txt again-stick hidden"></div>
+      <div class="col">
+        <div class="txt big"></div>
+        <div class="stats"><div class="txt d"></div><div class="txt c"></div></div>
+        <div class="txt score"></div>
+        <div class="txt again"></div>
+        <div class="txt again-stick hidden"></div>
+      </div>
+      <div class="col side">
+        <div class="picker hidden"><div class="txt head"></div><div class="tiles"></div><div class="txt hint"></div></div>
+        <div class="board caught-board hidden"></div>
+      </div>
     </div>`;
   const $ = (sel) => /** @type {HTMLElement} */ (root.querySelector(sel));
   const el = {
@@ -53,7 +70,21 @@ export function createHud(root, cfg = config) {
     prompt: $('.title-screen .prompt'), howto: $('.howto'), again: $('.caught-screen .again'), againStick: $('.again-stick'),
     reconnect: $('.reconnect'), reconnectText: $('.reconnect .txt'),
     caught: $('.caught-screen'), caughtD: $('.caught-screen .d'), caughtC: $('.caught-screen .c'),
+    combo: $('.combo'), score: $('.caught-screen .score'), picker: $('.picker'), tiles: $('.picker .tiles'),
+    titleBoard: $('.title-board'), caughtBoard: $('.caught-board'),
   };
+  $('.picker .head').textContent = strings.board.pickHead;
+  $('.picker .hint').textContent = strings.board.pickHint;
+  /** @type {HTMLButtonElement[]} */
+  const tiles = AVATARS.map((a, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'tile';
+    b.innerHTML = `<span class="icon">${a.icon}</span><span class="txt">${a.name}</span>`;
+    b.addEventListener('click', () => opts.onPick?.(i));
+    el.tiles.append(b);
+    return b;
+  });
   $('.title-screen .name').textContent = cfg.title;
   $('.title-screen .prompt').textContent = strings.startKeyboard;
   el.alt.textContent = strings.startPhone;
@@ -76,6 +107,15 @@ export function createHud(root, cfg = config) {
   const restartAnim = (node, name) => { node.classList.remove(name); void node.offsetWidth; node.classList.add(name); };
 
   let qrUrl = null;
+  let boardKey = '';
+  /** Top-5 rows; `rank` row gets the highlight. */
+  function boardHtml(list, rank) {
+    const rows = list.map((e, i) => {
+      const a = AVATARS[e.avatar];
+      return `<li class="${i === rank ? 'me' : ''}"><b>${i + 1}</b><span class="icon">${a.icon}</span><span class="n">${a.name}</span><span class="s">${e.score.toLocaleString('en-US')}</span></li>`;
+    }).join('');
+    return `<div class="txt head">${strings.board.title}</div><ol>${rows || `<li class="empty">${strings.board.empty}</li>`}</ol>`;
+  }
   let cornerTimer = 0;
   let lastCount = -1;
 
@@ -86,7 +126,7 @@ export function createHud(root, cfg = config) {
       $('.caught-screen .again').textContent = mode === 'mobile'
         ? 'เปิดแผงจอย แล้วแตะเริ่มเกมใหม่' : strings.restart;
     },
-    /** @param {any} world @param {{ phoneLost: boolean, tunnelUrl: string|null, pace?: {stepsPerMinute:number}|null, sticksIn?: number, reconnecting?: string[]|null }} extra */
+    /** @param {any} world @param {{ phoneLost: boolean, tunnelUrl: string|null, pace?: {stepsPerMinute:number}|null, sticksIn?: number, reconnecting?: string[]|null, board?: BoardView }} extra */
     update(world, extra) {
       const running = world.phase === 'running';
       show(el.title, world.phase === 'title');
@@ -99,13 +139,17 @@ export function createHud(root, cfg = config) {
       const sticks = (extra.sticksIn ?? 0) > 0;
       show(el.howto, sticks);
       show(el.prompt, !sticks);
-      show(el.againStick, sticks);
-      show(el.again, !sticks);
+      const picking = world.phase === 'caught' && !!extra.board?.picking;
+      show(el.againStick, sticks && !picking);
+      show(el.again, !sticks && !picking);
       show(el.pace, running && !!extra.pace);
       if (extra.pace) text(el.pace, `จังหวะจอย ${extra.pace.stepsPerMinute} ครั้ง/นาที · ความเร็วเกม ${Math.round(world.player.speedMps / cfg.player.maxSpeed * 100)}%`);
 
       text(el.distance, formatMeters(world.player.distance));
       text(el.coinsN, String(world.coins));
+      const mult = multiplierFor(world.combo ?? 0, cfg.nearMiss);
+      show(el.combo, running && mult > 1);
+      text(el.combo, strings.combo(mult));
       const fill = meterFill(world.chaser.gap, cfg.chaser);
       const pct = `${(fill * 100).toFixed(1)}%`;
       if (last.get('fill') !== pct) { last.set('fill', pct); el.fill.style.width = pct; el.face.style.left = pct; }
@@ -130,6 +174,23 @@ export function createHud(root, cfg = config) {
       if (world.phase === 'caught' && world.lastRun) {
         text(el.caughtD, formatMeters(world.lastRun.distance));
         text(el.caughtC, `● ${world.lastRun.coins}`);
+        text(el.score, strings.board.score(world.lastRun.score.toLocaleString('en-US')));
+      }
+
+      // booth leaderboard: title = top 5; caught = avatar picker if the run made it, then the board
+      const b = extra.board;
+      show(el.titleBoard, world.phase === 'title' && !!b && b.list.length > 0);
+      show(el.picker, world.phase === 'caught' && !!b?.picking);
+      show(el.caughtBoard, world.phase === 'caught' && !!b && !b.picking && b.list.length > 0);
+      if (b) {
+        const key = JSON.stringify([b.list, b.rank, world.phase]);
+        if (key !== boardKey) {
+          boardKey = key;
+          el.titleBoard.innerHTML = boardHtml(b.list, -1);
+          el.caughtBoard.innerHTML = boardHtml(b.list, b.rank);
+          cls(el.caughtBoard, 'record', b.rank === 0);
+        }
+        tiles.forEach((t, i) => cls(t, 'sel', b.picking && i === b.sel));
       }
 
       // QR for the phone page, title screen only
@@ -156,6 +217,20 @@ export function createHud(root, cfg = config) {
         pop.innerHTML = `${strings.survived}<small>+${cfg.chase.rewardCoins} ●</small>`;
         root.append(pop);
         setTimeout(() => pop.remove(), 2300);
+      } else if (name === 'near-miss') {
+        const pop = document.createElement('div');
+        pop.className = 'txt near';
+        pop.textContent = strings.nearMiss;
+        root.append(pop);
+        setTimeout(() => pop.remove(), 900);
+      } else if (name === 'combo-up') {
+        restartAnim(el.combo, 'up');
+      } else if (name === 'combo-break') {
+        const pop = document.createElement('div');
+        pop.className = 'txt combo-lost';
+        pop.textContent = strings.comboLost;
+        root.append(pop);
+        setTimeout(() => pop.remove(), 900);
       } else if (name === 'coin') {
         restartAnim(el.coins, 'bump');
       } else if (name === 'run-start' || name === 'caught') {

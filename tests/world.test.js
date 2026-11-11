@@ -27,7 +27,7 @@ test('stop running from start gap -> caught in 3-4 s', () => {
   const { events, t } = runUntil(w, idle, (e) => e.includes('caught'), 10);
   expect(t).toBeGreaterThan(3); expect(t).toBeLessThan(4);
   expect(w.phase).toBe('caught'); expect(count(events, 'caught')).toBe(1);
-  expect(w.lastRun).toEqual({ distance: 0, coins: 0 });
+  expect(w.lastRun).toEqual({ distance: 0, coins: 0, score: 0, bestCombo: 0, nearMisses: 0 });
 });
 
 test('caught world does nothing more', () => {
@@ -139,7 +139,7 @@ test('coin in another lane is not picked', () => {
 });
 
 test('chase: warning 3 s, active 30 s faster, survive gives reward', () => {
-  const w = createWorld(emptyCfg(), 1); startRun(w);
+  const w = createWorld(emptyCfg(), 1); startRun(w); w.chase.count = 1; // not the short first pack
   const steady = frame({ speed: 0.7 }); // 8.4 m/s: gap holds still during the active chase
   run(w, steady, 1);
   expect(triggerChase(w)).toBe(true); expect(w.chase.phase).toBe('warning');
@@ -159,17 +159,20 @@ test('caught during the chase event ends the run', () => {
   expect(w.phase).toBe('caught'); expect(events).not.toContain('chase-survived');
 });
 
-test('auto chase at 60 s, then every 90 s', () => {
+test('auto chase at 20 s, then every 60 s; the first pack lasts 15 s, later ones 30 s', () => {
   const w = createWorld(emptyCfg(), 1); startRun(w);
-  const { log } = run(w, sprint, 155);
-  const warns = log.filter((x) => x.e === 'chase-warning').map((x) => x.t);
-  expect(warns.length).toBe(2);
-  expect(warns[0]).toBeCloseTo(60, 1); expect(warns[1]).toBeCloseTo(150, 1);
+  const { log } = run(w, sprint, 145);
+  const at = (name) => log.filter((x) => x.e === name).map((x) => x.t);
+  const warns = at('chase-warning');
+  expect(warns.length).toBe(3);
+  expect(warns[0]).toBeCloseTo(20, 1); expect(warns[1]).toBeCloseTo(80, 1); expect(warns[2]).toBeCloseTo(140, 1);
+  const starts = at('chase-start'); const ends = at('chase-survived');
+  expect(ends[0] - starts[0]).toBeCloseTo(15, 1); expect(ends[1] - starts[1]).toBeCloseTo(30, 1);
 });
 
 test('hotkey chase resets the auto timer', () => {
   const w = createWorld(emptyCfg(), 1); startRun(w); run(w, sprint, 10); triggerChase(w);
-  expect(w.chase.nextAt).toBeCloseTo(100, 1);
+  expect(w.chase.nextAt).toBeCloseTo(70, 1);
 });
 
 test('chase event halves obstacle density', () => {
@@ -312,4 +315,54 @@ test('restart clears heel dogs', () => {
   const w = createWorld(emptyCfg(), 1); startRun(w); w.track.obstacles.push(obs('dog', 3));
   runUntil(w, sprint, (e) => e.includes('hit'), 2); startRun(w);
   expect(w.heelDogs).toEqual([]); expect(w.chaser.speedMps).toBe(6);
+});
+
+// --- near-miss + combo ---
+const obsAt = (kind, z, lane = 0) => ({ id: z * 10 + lane + 5, kind, type: kind === 'dog' || kind === 'jar' ? 'jump' : 'block', lane, z, hit: false });
+
+test('late lane dodge past an obstacle = near-miss with bonus coins', () => {
+  const w = createWorld(emptyCfg(), 1); startRun(w); w.track.obstacles.push(obsAt('cart', 10));
+  // full speed: the cart is ~0.8 s away; dodge right ~0.3 s before it
+  const { events } = run(w, (t) => (t > 0.5 && t < 0.51 ? frame({ speed: 1, laneDelta: 1 }) : sprint), 1.5);
+  expect(events).toContain('near-miss'); expect(events).not.toContain('hit');
+  expect(w.coins).toBe(config.nearMiss.bonusCoins); expect(w.nearMisses).toBe(1); expect(w.combo).toBe(1);
+});
+
+test('early lane change is a clean pass, not a near-miss', () => {
+  const w = createWorld(emptyCfg(), 1); startRun(w); w.track.obstacles.push(obsAt('cart', 30));
+  const { events } = run(w, (t) => (t < 0.01 ? frame({ speed: 1, laneDelta: 1 }) : sprint), 3.5);
+  expect(events).not.toContain('near-miss'); expect(w.combo).toBe(1); expect(w.coins).toBe(0);
+});
+
+test('late jump over a dog = near-miss', () => {
+  const w = createWorld(emptyCfg(), 1); startRun(w); w.track.obstacles.push(obsAt('dog', 10));
+  // jump when the dog is ~2.4 m away (0.2 s at 12 m/s)
+  const { events } = run(w, (t) => (t > 0.63 && t < 0.64 ? frame({ speed: 1, jump: true }) : sprint), 1.5);
+  expect(events).not.toContain('hit'); expect(events).toContain('near-miss');
+});
+
+test('combo counts rows, multiplies coins, breaks on a hit', () => {
+  const w = createWorld(emptyCfg(), 1); startRun(w);
+  for (let i = 0; i < 5; i++) w.track.obstacles.push(obsAt('cart', 10 + i * 10, 1)); // other lane: plain passes
+  const { events } = run(w, sprint, 5);
+  expect(w.combo).toBe(5); expect(count(events, 'combo-up')).toBe(1);
+  w.track.coins.push({ id: 900, lane: 0, z: w.player.distance + 3, taken: false });
+  run(w, sprint, 0.5);
+  expect(w.coins).toBe(2); // x2
+  w.track.obstacles.push(obsAt('cart', w.player.distance + 3, 0));
+  const hit = run(w, sprint, 0.5);
+  expect(hit.events).toContain('combo-break'); expect(w.combo).toBe(0); expect(w.bestCombo).toBe(5);
+});
+
+test('a row with one obstacle hit does not count for the combo', () => {
+  const w = createWorld(emptyCfg(), 1); startRun(w);
+  w.track.obstacles.push(obsAt('cart', 10, 0), obsAt('cart', 10, 1));
+  run(w, sprint, 2);
+  expect(w.combo).toBe(0);
+});
+
+test('score = whole metres + coins, saved on caught', () => {
+  const w = createWorld(emptyCfg(), 1); startRun(w); run(w, sprint, 1); w.coins = 7;
+  runUntil(w, idle, (e) => e.includes('caught'), 20);
+  expect(w.lastRun.score).toBe(Math.floor(w.lastRun.distance) + 7);
 });

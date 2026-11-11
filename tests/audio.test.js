@@ -6,7 +6,7 @@ test('soundsForEvent maps world events to dog-theme sounds', () => {
   const table = {
     coin: ['coin'], jump: ['jump'], land: ['land'], hit: ['crash', 'bark'], 'hit-jar': ['jar'],
     'hit-cart': ['meatball', 'yell'], 'hit-tuktuk': ['horn'], 'heel-start': ['bark'], 'chaser-near': ['bark'],
-    'chase-start': ['howl'], 'chase-survived': ['escape'], caught: ['caught'], 'run-start': ['bark'],
+    'chase-start': ['howl'], 'near-miss': ['whoosh', 'coin'], 'combo-up': ['chime'], 'chase-survived': ['escape'], caught: ['caught'], 'run-start': ['bark'],
   };
   for (const [event, sounds] of Object.entries(table)) expect(soundsForEvent(event)).toEqual(sounds);
   expect(soundsForEvent('hit-dog')).toEqual([]); expect(soundsForEvent('lane')).toEqual([]);
@@ -14,7 +14,7 @@ test('soundsForEvent maps world events to dog-theme sounds', () => {
 });
 
 test('every sound has a synth fallback, so the game never goes silent', () => {
-  for (const name of SOUND_NAMES) expect(typeof SYNTH[name]).toBe('function');
+  for (const name of [...SOUND_NAMES, 'whoosh', 'chime']) expect(typeof SYNTH[name]).toBe('function');
 });
 
 test('every sound, both loops and both music tracks have files; ghost-era sounds are gone', () => {

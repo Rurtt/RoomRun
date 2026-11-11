@@ -9,6 +9,14 @@ test('only actual collision, capture and pack start events request feedback', ()
   expect(feedbackForEvents(['chase-start'])).toBe('pack');
   expect(feedbackForEvents(['coin', 'jump', 'land', 'chase-warning'])).toBe(null);
   expect(feedbackForEvents(['hit', 'chase-start', 'caught'])).toBe('caught');
+  expect(feedbackForEvents(['near-miss'])).toBe('near');
+});
+
+test('near-miss sends the short hit pulse (no own motor code yet)', () => {
+  const sent = [];
+  const feedback = createGameHaptics(p => { sent.push(p); return true; }, () => 0);
+  expect(feedback.onEvents(['near-miss'])).toBe(true);
+  expect(sent).toEqual(['hit']);
 });
 
 test('duplicate hits cannot extend a pulse, and capture preempts a hit', () => {

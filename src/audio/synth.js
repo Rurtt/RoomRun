@@ -71,6 +71,9 @@ export const SYNTH = {
     bark(ctx, out, 1.2);
     [523, 440, 349, 262].forEach((f, i) => blip(ctx, out, { f0: f, dur: 0.22, vol: 0.16, at: 0.3 + i * 0.16 }));
   },
+  // synth-only (no file): near-miss swish, combo multiplier going up
+  whoosh: (ctx, out) => { noise(ctx, out, { dur: 0.22, freq: 2600, vol: 0.45 }); blip(ctx, out, { type: 'triangle', f0: 900, f1: 1800, dur: 0.16, vol: 0.12 }); },
+  chime: (ctx, out) => [784, 988, 1175, 1568].forEach((f, i) => blip(ctx, out, { type: 'triangle', f0: f, dur: 0.14, vol: 0.14, at: i * 0.05 })),
   escape: (ctx, out) => [523, 659, 784, 1047].forEach((f, i) => blip(ctx, out, { f0: f, dur: 0.2, vol: 0.16, at: i * 0.1 })),
 };
 

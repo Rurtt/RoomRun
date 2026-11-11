@@ -20,13 +20,14 @@ export const FILES = {
   music: ['music'], music_chase: ['music_chase'],
 };
 
-/** @type {Record<string, SoundName[]>} */
+/** @type {Record<string, (SoundName|'whoosh'|'chime')[]>} */
 const EVENT_SOUNDS = {
   coin: ['coin'], jump: ['jump'], land: ['land'],
   hit: ['crash', 'bark'], // every hit: crash, and the boss barks as it peeks
   'hit-jar': ['jar'], 'hit-cart': ['meatball', 'yell'], 'hit-tuktuk': ['horn'],
   'heel-start': ['bark'], 'chaser-near': ['bark'], 'run-start': ['bark'],
-  'chase-start': ['howl'], 'chase-survived': ['escape'], caught: ['caught'],
+  'chase-start': ['howl'], 'near-miss': ['whoosh', 'coin'], 'combo-up': ['chime'], // whoosh/chime: synth only, no file
+  'chase-survived': ['escape'], caught: ['caught'],
 };
 
 /** @param {string} event @returns {SoundName[]} */

@@ -9,6 +9,16 @@ export default {
   survived: 'รอดแล้ว!',
   caught: 'หมาทันแล้ว!',
   restart: 'กด R เพื่อเล่นอีกครั้ง',
+  nearMiss: 'เฉียด!',
+  combo: (m) => `x${m}`,
+  comboLost: 'คอมโบหลุด',
+  board: {
+    title: 'อันดับวันนี้',
+    empty: 'ยังไม่มีใครวิ่ง',
+    score: (n) => `คะแนน ${n}`,             // n already formatted
+    pickHead: 'ติดอันดับ! เลือกตัวละคร',
+    pickHint: 'แตะเลือก · ปุ่มใหญ่ = เลื่อน · ปุ่มเล็ก = ตกลง',
+  },
   phoneLost: 'มือถือหลุด',
   // Bluetooth sticks: how-to on the title, restart hint, drop overlay
   sticks: {

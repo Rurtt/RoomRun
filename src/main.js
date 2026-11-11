@@ -28,6 +28,7 @@ import { createAudio, soundsForEvent } from './audio/audio.js';
 import { hotkeyAction } from './debug/hotkeys.js';
 import { createDebugPanel } from './debug/panel.js';
 import { gameFlow, audioLevels, watchSticks } from './gameFlow.js';
+import { createLeaderboard, AVATARS } from './leaderboard.js';
 
 const preferences = createSettingsStore();
 applyMotionSettings(config, preferences.get());
@@ -45,7 +46,21 @@ document.body.append(overlay);
 const effects = createEffects(view.scene, overlay);
 const hudRoot = document.createElement('div');
 document.body.append(hudRoot);
-const hud = createHud(hudRoot);
+const hud = createHud(hudRoot, config, { onPick: (i) => signRun(i) });
+// Booth top 5 (localStorage). After a catch that makes the board, the player
+// picks an avatar: tap a tile, or big button = move, small button = OK.
+const board = createLeaderboard();
+const pick = { picking: false, sel: 0, rank: -1, caughtAt: 0 };
+/** The caught screen fades in after the cutscene: no signing before the player can see the picker. */
+const PICK_DELAY_MS = 1800;
+function signRun(avatar) {
+  if (!pick.picking || world.phase !== 'caught' || !world.lastRun) return;
+  if (performance.now() - pick.caughtAt < PICK_DELAY_MS) return;
+  const r = world.lastRun;
+  pick.rank = board.add({ avatar, score: r.score, distance: Math.floor(r.distance), coins: r.coins, at: Date.now() });
+  pick.picking = false;
+  audio.play('escape');
+}
 const audio = createAudio();
 audio.setVolumes(preferences.get());
 const hitStop = createHitStop(config);
@@ -90,7 +105,8 @@ const prev = { distance: 0, x: 0, y: 0 };
 const interp = { z: 0, x: 0, y: 0 };
 const extra = { phoneLost: false, tunnelUrl: /** @type {string|null} */ (null), pace: null,
   /** Bluetooth sticks connected now */ sticksIn: 0,
-  /** hands whose stick dropped mid-run (game paused), or null */ reconnecting: /** @type {string[]|null} */ (null) };
+  /** hands whose stick dropped mid-run (game paused), or null */ reconnecting: /** @type {string[]|null} */ (null),
+  /** @type {import('./hud/hud.js').BoardView|undefined} */ board: undefined };
 /** Sticks the current run depends on; see watchSticks. */
 let stickWatch = { expected: new Set(), lost: /** @type {string[]} */ ([]) };
 let lastRetry = 0;
@@ -126,6 +142,8 @@ preferences.subscribe((next, previous) => {
 function emit(events) {
   haptics.onEvents(events);
   for (const e of events) {
+    if (e === 'caught') Object.assign(pick, { picking: !!world.lastRun && board.qualifies(world.lastRun.score), sel: 0, rank: -1, caughtAt: performance.now() });
+    else if (e === 'run-start') Object.assign(pick, { picking: false, rank: -1 });
     if (e === 'hit') hitStop.trigger();
     else if (e === 'caught' || e === 'run-start') hitStop.reset();
     actors.onEvent(e);
@@ -143,6 +161,8 @@ function step(dt) {
   prev.distance = p.distance; prev.x = p.x; prev.y = p.y;
   const now = performance.now();
   stickWatch = watchSticks(stickWatch.expected, bluetooth.snapshot(), world.phase);
+  // while the avatar picker is open the small button signs the run instead of restarting
+  if (pendingAction === 'start' && pick.picking && world.phase === 'caught') { pendingAction = null; signRun(pick.sel); }
   const flow = gameFlow({ phase: world.phase, action: pendingAction, sticksLost: stickWatch.lost.length > 0 });
   pendingAction = null;
   if (flow.start) restart();
@@ -155,6 +175,7 @@ function step(dt) {
   }
   extra.reconnecting = null;
   const input = hub.read(now);
+  if (pick.picking && world.phase === 'caught' && input.laneDelta) pick.sel = (pick.sel + input.laneDelta + AVATARS.length) % AVATARS.length;
   actors.onSteps(input.steps);
   rig.onSteps(input.steps);
   for (let i = 0; i < Math.min(input.steps, 2); i++) audio.play('step');
@@ -182,6 +203,7 @@ function render(alpha) {
   extra.pace = phone.everConnected && config.motion.runMode === 'exercise' ? motion.exerciseStatus(performance.now()) : null;
   const snap = bluetooth.snapshot();
   extra.sticksIn = (snap.L.connected ? 1 : 0) + (snap.R.connected ? 1 : 0);
+  extra.board = { list: board.list, rank: pick.rank, picking: pick.picking, sel: pick.sel };
   hud.update(world, extra);
   const running = world.phase === 'running';
   const levels = audioLevels({ running, paused: !!extra.reconnecting, fill: meterFill(world.chaser.gap, config.chaser), chaseActive: world.chase.phase === 'active' });
@@ -199,6 +221,8 @@ const panel = createDebugPanel(config, stats);
 window.addEventListener('keydown', (e) => {
   if (gameSettings.isOpen) return;
   if (e.repeat || /** @type {any} */ (e.target)?.tagName === 'INPUT') return; // typing in the panel
+  if (pick.picking && e.code === 'Enter') { signRun(pick.sel); return; }
+  if (e.code === 'KeyL' && e.shiftKey) { board.clear(); pick.rank = -1; return; } // operator: wipe the booth board
   const action = hotkeyAction(e.code);
   // keyboard = operator: play on even with a dead stick
   if (action === 'restart') { stickWatch = { expected: new Set(), lost: [] }; restart(); }
@@ -241,7 +265,7 @@ requestAnimationFrame(tick);
 // Dev-only handle for browser checks (Playwright) and console poking.
 if (import.meta.env.DEV) {
   window.soip = {
-    world, view, environment, actors, hud, audio, panel, stats, hub, phone, keyboard, config, startRun, triggerChase,
+    world, view, environment, actors, hud, audio, panel, stats, hub, phone, keyboard, config, startRun, triggerChase, board, pick,
     pause(on = true) { devPaused = on; },
     /** Step the sim `seconds` with a fixed input (lane/jump fire once), then draw one frame. */
     simulate(seconds, f = {}) {

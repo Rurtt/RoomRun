@@ -1,6 +1,6 @@
 // Obstacle and coin spawning. Rows of obstacles sit at one z; every row leaves
 // a lane free, rows are far enough apart to react (~1.2 s at full speed), and
-// the first minute only has single obstacles (teardown section 4).
+// the first ~20 s only have single obstacles (config track.singleOnlyUntil).
 import config from '../config.js';
 
 /** @typedef {{ id: number, kind: 'dog'|'jar'|'cart'|'tuktuk', type: 'jump'|'block', lane: -1|0|1, z: number, hit: boolean }} Obstacle */
