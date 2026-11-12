@@ -7,7 +7,7 @@ import strings from '../strings.js';
 import { formatMeters, meterFill, chaseSeconds } from './format.js';
 import { eyeColor } from '../render/chaserView.js';
 import { multiplierFor } from '../sim/world.js';
-import { AVATARS } from '../leaderboard.js';
+import { AVATARS, rival } from '../leaderboard.js';
 
 /** Boss dog face (CSS only): dark head, torn left ear, amber eyes (red when close), tan muzzle. */
 const DOG_FACE = '<div class="dog-face"><i class="ear l"></i><i class="ear r"></i><b></b><b></b><s></s></div>';
@@ -53,6 +53,7 @@ export function createHud(root, cfg = config, opts = {}) {
         <div class="txt big"></div>
         <div class="stats"><div class="txt d"></div><div class="txt c"></div></div>
         <div class="txt score"></div>
+        <div class="txt so-close hidden"></div>
         <div class="txt again"></div>
         <div class="txt again-stick hidden"></div>
       </div>
@@ -70,7 +71,7 @@ export function createHud(root, cfg = config, opts = {}) {
     prompt: $('.title-screen .prompt'), howto: $('.howto'), again: $('.caught-screen .again'), againStick: $('.again-stick'),
     reconnect: $('.reconnect'), reconnectText: $('.reconnect .txt'),
     caught: $('.caught-screen'), caughtD: $('.caught-screen .d'), caughtC: $('.caught-screen .c'),
-    combo: $('.combo'), score: $('.caught-screen .score'), picker: $('.picker'), tiles: $('.picker .tiles'),
+    combo: $('.combo'), score: $('.caught-screen .score'), soClose: $('.so-close'), picker: $('.picker'), tiles: $('.picker .tiles'),
     titleBoard: $('.title-board'), caughtBoard: $('.caught-board'),
   };
   $('.picker .head').textContent = strings.board.pickHead;
@@ -190,6 +191,10 @@ export function createHud(root, cfg = config, opts = {}) {
           el.caughtBoard.innerHTML = boardHtml(b.list, b.rank);
           cls(el.caughtBoard, 'record', b.rank === 0);
         }
+        // "so close": the entry just above this run (after the avatar pick, if it made the board)
+        const target = world.phase === 'caught' && world.lastRun && !b.picking ? rival(b.list, world.lastRun.score, b.rank) : null;
+        show(el.soClose, !!target);
+        if (target) { const a = AVATARS[target.avatar]; text(el.soClose, strings.board.soClose(target.lead.toLocaleString('en-US'), a.icon, a.name, target.close)); }
         tiles.forEach((t, i) => cls(t, 'sel', b.picking && i === b.sel));
       }
 

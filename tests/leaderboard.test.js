@@ -1,5 +1,5 @@
 import { test, expect } from 'vitest';
-import { AVATARS, SIZE, clean, qualifies, insert, createLeaderboard } from '../src/leaderboard.js';
+import { AVATARS, SIZE, clean, qualifies, insert, rival, createLeaderboard } from '../src/leaderboard.js';
 
 const e = (score, at = score, avatar = 0) => ({ avatar, score, at });
 const memory = () => { const m = new Map(); return { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => m.set(k, v) }; };
@@ -34,4 +34,24 @@ test('broken storage still gives a working board', () => {
   const bad = { getItem: () => '{oops', setItem: () => { throw new Error('quota'); } };
   const b = createLeaderboard(bad);
   expect(b.add(e(5))).toBe(0); expect(b.list.length).toBe(1);
+});
+
+test('rival: missed board = 5th place; lead 0 on a tie', () => {
+  const full = [e(500), e(400), e(300), e(200, 1, 5), e(100, 2, 5)];
+  expect(rival(full, 77, -1)).toEqual({ avatar: 5, lead: 23, close: false });
+  expect(rival(full, 100, -1)).toEqual({ avatar: 5, lead: 0, close: true });
+});
+
+test('rival: on the board = the entry one rank up; #1, empty board, score 0 = none', () => {
+  const list = [e(500, 1, 0), e(400, 2, 3), e(380, 3, 1)];
+  expect(rival(list, 380, 2)).toEqual({ avatar: 3, lead: 20, close: true });
+  expect(rival(list, 300, 2)).toEqual({ avatar: 3, lead: 100, close: false });
+  expect(rival(list, 500, 0)).toBe(null);
+  expect(rival([], 50, -1)).toBe(null);
+  expect(rival(list, 0, -1)).toBe(null);
+});
+
+test('rival: close = lead within 10% of the rival score', () => {
+  expect(rival([e(1000)], 900, -1).close).toBe(true);
+  expect(rival([e(1000)], 899, -1).close).toBe(false);
 });

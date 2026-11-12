@@ -32,6 +32,20 @@ export function insert(list, entry) {
   return { list: next, rank: next.indexOf(entry) };
 }
 
+/**
+ * "So close" target for the caught screen: the entry just above this run.
+ * rank = where the run landed (0-based), -1 = missed the board.
+ * lead = how far ahead the rival is (0 = tie). close = lead within 10% of the rival's score.
+ * @returns {{ avatar: number, lead: number, close: boolean } | null} null for a new #1, empty board or score 0
+ */
+export function rival(list, score, rank) {
+  if (!(score > 0) || rank === 0 || list.length === 0) return null;
+  const r = rank > 0 ? list[rank - 1] : list[list.length - 1];
+  if (!r) return null;
+  const lead = r.score - score;
+  return { avatar: r.avatar, lead, close: lead <= r.score * 0.1 };
+}
+
 /** @param {Storage|null} storage */
 export function createLeaderboard(storage = safeStorage()) {
   let list = [];

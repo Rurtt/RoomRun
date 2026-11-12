@@ -17,6 +17,9 @@ export default {
     score: (n) => `คะแนน ${n}`,             // n already formatted
     pickHead: 'ติดอันดับ! เลือกตัวละคร',
     pickHint: 'แตะเลือก · ปุ่มใหญ่ = เลื่อน · ปุ่มเล็ก = ตกลง',
+    // caught screen: the board entry just above this run (n already formatted)
+    soClose: (n, icon, name, close) => n === '0' ? `เสมอ ${icon} ${name}! อีกแค่ 1 คะแนน`
+      : `${close ? 'อีกนิดเดียว! ' : ''}${icon} ${name}นำอยู่ ${n} คะแนน!`,
   },
   phoneLost: 'มือถือหลุด',
   // Bluetooth sticks: how-to on the title, restart hint, drop overlay
