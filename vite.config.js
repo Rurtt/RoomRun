@@ -1,6 +1,8 @@
 import { defineConfig } from 'vite';
 
 export default defineConfig({
+  // relative asset paths: the same build runs on localhost and under /RoomRun/ on GitHub Pages
+  base: './',
   server: {
     port: 5173,
     strictPort: true,

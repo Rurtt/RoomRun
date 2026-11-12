@@ -252,15 +252,18 @@ function toonify(root, rim, outline = rim) {
   });
 }
 
+// relative to the page base: '/' on localhost, './' build also works under /RoomRun/ on GitHub Pages
+const MODELS_DIR = `${import.meta.env?.BASE_URL ?? '/'}models/`;
+
 function fetchGltf(name) {
   if (!gltfCache.has(name)) {
-    const url = `/models/${FILE_FOR[name] ?? name}.glb`;
+    const url = `${MODELS_DIR}${FILE_FOR[name] ?? name}.glb`;
     gltfCache.set(name, fetch(url)
       .then((r) => (r.ok ? r.arrayBuffer() : null))
       .then((buf) => {
         // Vite answers a missing file with index.html: check the glTF magic first
         if (!buf || buf.byteLength < 4 || new TextDecoder().decode(new Uint8Array(buf, 0, 4)) !== 'glTF') return null;
-        return loader.parseAsync(buf, '/models/');
+        return loader.parseAsync(buf, MODELS_DIR);
       })
       .then((gltf) => {
         if (!gltf) return null;

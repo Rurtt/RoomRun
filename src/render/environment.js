@@ -115,17 +115,19 @@ const KIT_GLOW = { lamp: 3.5, shoplight: 0.95, fridge_glass: 1.1, candle: 1.6, g
 /** @typedef {{ geo: THREE.BufferGeometry, name: string, color: number, emissive: number }} KitPiece */
 
 /** @returns {Promise<Record<string, KitPiece[]> | null>} parts by node name */
+const MODELS_DIR = `${import.meta.env?.BASE_URL ?? '/'}models/`;
+
 async function loadKit() {
   const loader = new GLTFLoader();
   /** @type {Record<string, KitPiece[]>} */
   const kit = {};
   await Promise.all(KIT_FILES.map(async (file) => {
     try {
-      const res = await fetch(`/models/${file}.glb`);
+      const res = await fetch(`${MODELS_DIR}${file}.glb`);
       const buf = res.ok ? await res.arrayBuffer() : null;
       // Vite answers a missing file with index.html: check the glTF magic first
       if (!buf || buf.byteLength < 4 || new TextDecoder().decode(new Uint8Array(buf, 0, 4)) !== 'glTF') return;
-      const gltf = await loader.parseAsync(buf, '/models/');
+      const gltf = await loader.parseAsync(buf, MODELS_DIR);
       gltf.scene.updateMatrixWorld(true);
       gltf.scene.traverse((o) => {
         if (!o.isMesh) return;
