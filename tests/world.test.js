@@ -320,12 +320,31 @@ test('restart clears heel dogs', () => {
 // --- near-miss + combo ---
 const obsAt = (kind, z, lane = 0) => ({ id: z * 10 + lane + 5, kind, type: kind === 'dog' || kind === 'jar' ? 'jump' : 'block', lane, z, hit: false });
 
+/** Sprint at a cart 30 m ahead (lane 0); dodge right once its centre is `ahead` m away. */
+function dodgeAt(ahead) {
+  const w = createWorld(emptyCfg(), 1); startRun(w); w.track.obstacles.push(obsAt('cart', 30));
+  let done = false;
+  const { events } = run(w, () => {
+    if (!done && 30 - w.player.distance <= ahead) { done = true; return frame({ speed: 1, laneDelta: 1 }); }
+    return sprint;
+  }, 4);
+  return { w, events };
+}
+
 test('late lane dodge past an obstacle = near-miss with bonus coins', () => {
-  const w = createWorld(emptyCfg(), 1); startRun(w); w.track.obstacles.push(obsAt('cart', 10));
-  // full speed: the cart is ~0.8 s away; dodge right ~0.3 s before it
-  const { events } = run(w, (t) => (t > 0.5 && t < 0.51 ? frame({ speed: 1, laneDelta: 1 }) : sprint), 1.5);
+  const { w, events } = dodgeAt(2.5); // full speed: must leave by ~1.5 m, near-miss up to ~3 m
   expect(events).toContain('near-miss'); expect(events).not.toContain('hit');
   expect(w.coins).toBe(config.nearMiss.bonusCoins); expect(w.combo).toBe(1);
+});
+
+test('a dodge a bit early (4 m out at full speed) is a clean pass, not a near-miss', () => {
+  const { w, events } = dodgeAt(4);
+  expect(events).not.toContain('hit'); expect(events).not.toContain('near-miss'); expect(w.combo).toBe(1);
+});
+
+test('a dodge too late is a hit, not a near-miss', () => {
+  const { events } = dodgeAt(1);
+  expect(events).toContain('hit'); expect(events).not.toContain('near-miss');
 });
 
 test('early lane change is a clean pass, not a near-miss', () => {

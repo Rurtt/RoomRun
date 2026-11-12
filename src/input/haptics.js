@@ -1,8 +1,8 @@
 // Game events -> short, named feedback. No queued feedback after a disconnect.
-// `send` names the stick's motor code; near-miss has no own code in the stick
-// firmware yet, so it borrows the short hit pulse.
+// `send` names the stick's motor code (defaults to the pattern name).
+// Near-miss has no buzz: the firmware has no own code for it, and borrowing the
+// hit pulse made a good dodge feel like a hit [Pong, 2026-11-12]. Text + sound only.
 const FEEDBACK = {
-  near: { duration: 120, priority: 0.5, send: 'hit' },
   hit: { duration: 120, priority: 1 },
   pack: { duration: 650, priority: 2 },
   caught: { duration: 600, priority: 3 },
@@ -12,7 +12,6 @@ export function feedbackForEvents(events) {
   if (events.includes('caught')) return 'caught';
   if (events.includes('chase-start')) return 'pack';
   if (events.includes('hit')) return 'hit';
-  if (events.includes('near-miss')) return 'near';
   return null;
 }
 

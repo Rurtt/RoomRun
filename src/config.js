@@ -13,13 +13,17 @@ export default {
            rewardCoins: 50, rewardGap: 15, obstacleDensity: 0.5 },
   track: { spawnAhead: 120, despawnBehind: 20, startClear: 30, minRowSpacing: 14, maxRowSpacing: 26,
            singleOnlyUntil: 20, coinRowLength: 5, coinSpacing: 2, coinRowChance: 0.6,
+           // brave line: from braveFrom s on, this share of coin rows runs up to (or over) an obstacle
+           braveFrom: 20, braveChance: 0.5,
            hitHalfDepth: 0.8, laneHitHalfWidth: 1.0, jumpClearHeight: 0.6, coinPickupDepth: 1.0 },
   // Dog rework: hit-stop, boss peek after a hit, woken heel dogs, per-obstacle extras, chase pack
   effects: { hitStop: 0.08, peekTime: 1.5, heelTime: 10, heelSpeedBonus: 1, maxHeelDogs: 2,
              cartCoinLoss: 10, tuktukStun: 2, packIntroTime: 2, packSize: 3 },
-  // Near-miss: leave an obstacle's lane (or jump it) this late = เฉียด! + bonus coins.
+  // Near-miss: leave an obstacle's lane (or take off over it) no more than slackMetres
+  // before the latest moment that still clears it at the kid's current speed = เฉียด! + bonus coins.
+  // Relative to the clearing point, so it means the same at a jog and a sprint. Rare on purpose.
   // Combo: rows passed without a hit; every comboStep rows the coin multiplier goes up by 1.
-  nearMiss: { laneWindow: 0.5, jumpWindow: 0.45, bonusCoins: 5, comboStep: 5, maxMultiplier: 5 },
+  nearMiss: { slackMetres: 1.5, bonusCoins: 5, comboStep: 5, maxMultiplier: 5 },
   // last ~0.6 s before a catch the game runs at slowMoScale (the grab reads on video)
   juice: { slowMoScale: 0.7, slowMoWindow: 0.6, slowMoMaxGap: 4 },
   // Phone/stick arm-swing detection, m/s^2 with gravity removed. Tuned from logs (scripts/replay.mjs).

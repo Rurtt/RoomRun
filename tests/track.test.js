@@ -91,3 +91,41 @@ test('coins never share a lane+z band with an obstacle', () => {
       .forEach((o) => expect(Math.abs(o.z - c.z)).toBeGreaterThanOrEqual(config.track.hitHalfDepth));
   });
 });
+
+// --- brave line coins ---
+const rowAt = (obstacles, z) => obstacles.filter((o) => o.z === z);
+test('before braveFrom every coin row is in a free lane', () => {
+  const { obstacles, coins } = collect(11, config.track.braveFrom - 1);
+  expect(coins.length).toBeGreaterThan(20);
+  coins.forEach((c) => {
+    expect(c.brave).toBeUndefined();
+    expect(rowAt(obstacles, c.rowZ).some((o) => o.lane === c.lane)).toBe(false);
+  });
+});
+
+test('after braveFrom about braveChance of coin rows run in an obstacle lane', () => {
+  const { obstacles, coins } = collect(12, 120, 4000);
+  const brave = coins.filter((c) => c.brave);
+  const share = brave.length / coins.length;
+  expect(share).toBeGreaterThan(config.track.braveChance - 0.15);
+  expect(share).toBeLessThan(config.track.braveChance + 0.15);
+  brave.forEach((c) => expect(rowAt(obstacles, c.rowZ).some((o) => o.lane === c.lane)).toBe(true));
+});
+
+test('brave coins never sit on an obstacle, and jump rows carry on past it', () => {
+  const { obstacles, coins } = collect(13, 120, 4000);
+  coins.forEach((c) => obstacles.forEach((o) => {
+    if (o.lane === c.lane) expect(Math.abs(o.z - c.z)).toBeGreaterThan(config.track.hitHalfDepth + config.track.coinPickupDepth);
+  }));
+  const past = coins.filter((c) => c.brave && obstacles.some((o) => o.lane === c.lane && o.type === 'jump' && c.z > o.z && c.z - o.z < 8));
+  expect(past.length).toBeGreaterThan(10);
+});
+
+test('coins never stack: no two coins in one lane closer than coinSpacing', () => {
+  const { coins } = collect(14, 120, 4000);
+  const byLane = Object.values(Object.groupBy(coins, (c) => c.lane));
+  byLane.forEach((l) => {
+    const zs = l.map((c) => c.z).sort((a, b) => a - b);
+    for (let i = 1; i < zs.length; i++) expect(zs[i] - zs[i - 1]).toBeGreaterThanOrEqual(config.track.coinSpacing - 1e-9);
+  });
+});

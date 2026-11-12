@@ -50,8 +50,9 @@ export function createWorld(cfg = config, seed = Date.now()) {
 
 function newPlayer() {
   return { lane: 0, x: 0, y: 0, vy: 0, distance: 0, speedMps: 0, stumbleT: 0, laneCooldownT: 0, airborne: false,
-    /** lane left by the latest lane change, and when (runTime); latest takeoff time */
-    laneFrom: 0, laneT: -Infinity, jumpT: -Infinity };
+    /** lane left by the latest lane change; obstacles centred up to this distance count as a near-miss
+     *  for that lane change / the latest takeoff (see nearReach) */
+    laneFrom: 0, laneReach: -Infinity, jumpReach: -Infinity };
 }
 
 /** Coin multiplier for a combo: 1 until comboStep rows, then +1 per comboStep, capped. */
@@ -142,7 +143,7 @@ export function stepWorld(world, input, dt) {
     const lane = Math.max(-1, Math.min(1, p.lane + input.laneDelta));
     if (lane !== p.lane) {
       p.laneFrom = p.lane;
-      p.laneT = world.runTime;
+      p.laneReach = nearReach(world, 'lane');
       p.lane = lane;
       p.laneCooldownT = pc.laneCooldown;
       events.push('lane');
@@ -156,7 +157,7 @@ export function stepWorld(world, input, dt) {
   if (input.jump && !p.airborne) {
     p.vy = pc.jumpVelocity;
     p.airborne = true;
-    p.jumpT = world.runTime;
+    p.jumpReach = nearReach(world, 'jump');
     events.push('jump');
   }
   if (p.airborne) {
@@ -253,9 +254,27 @@ export function stepWorld(world, input, dt) {
 }
 
 /**
+ * Furthest obstacle centre (distance) for which a lane change / takeoff right now is a
+ * near-miss: the closest centre it can still clear at the current speed, plus slackMetres.
+ * Lane: the kid must be laneHitHalfWidth sideways before reaching the obstacle's front edge.
+ * Jump: the feet must be at jumpClearHeight by the front edge.
+ */
+export function nearReach(world, kind) {
+  const { cfg, player: p } = world;
+  const pc = cfg.player, tc = cfg.track;
+  let t;
+  if (kind === 'lane') t = tc.laneHitHalfWidth / (pc.laneWidth / pc.laneChangeTime);
+  else {
+    const v = pc.jumpVelocity, g = pc.gravity, h = tc.jumpClearHeight;
+    t = (v - Math.sqrt(Math.max(0, v * v - 2 * g * h))) / g;
+  }
+  return p.distance + tc.hitHalfDepth + p.speedMps * t + cfg.nearMiss.slackMetres;
+}
+
+/**
  * Obstacles that just went behind the kid without a hit. A row counts once for
  * the combo (only if nothing in it was hit). A near-miss: the kid left that
- * obstacle's lane, or jumped it, within the last moment.
+ * obstacle's lane, or took off over it, close to the last moment that still clears it.
  */
 function passRows(world, events) {
   const { cfg, player: p } = world;
@@ -272,8 +291,8 @@ function passRows(world, events) {
       world.combo++;
       if (multiplierFor(world.combo, nm) > before) events.push('combo-up');
     }
-    const dodged = o.lane === p.laneFrom && o.lane !== p.lane && world.runTime - p.laneT <= nm.laneWindow;
-    const jumped = o.type === 'jump' && o.lane === p.lane && world.runTime - p.jumpT <= nm.jumpWindow;
+    const dodged = o.lane === p.laneFrom && o.lane !== p.lane && o.z <= p.laneReach;
+    const jumped = o.type === 'jump' && o.lane === p.lane && o.z <= p.jumpReach;
     if (!rowHit && (dodged || jumped)) near = true;
   }
   if (near) {

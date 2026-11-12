@@ -4,7 +4,7 @@
 import config from '../config.js';
 
 /** @typedef {{ id: number, kind: 'dog'|'jar'|'cart'|'tuktuk', type: 'jump'|'block', lane: -1|0|1, z: number, hit: boolean }} Obstacle */
-/** @typedef {{ id: number, lane: -1|0|1, z: number, taken: boolean }} Coin */
+/** @typedef {{ id: number, lane: -1|0|1, z: number, rowZ: number, taken: boolean, brave?: true }} Coin */
 
 const KINDS = /** @type {const} */ (['dog', 'jar', 'cart', 'tuktuk']);
 const TYPE = { dog: 'jump', jar: 'jump', cart: 'block', tuktuk: 'block' };
@@ -22,6 +22,8 @@ export function createTrack(cfg = config.track, rng) {
     /** @type {Coin[]} */ coins: [],
     nextRowZ: cfg.startClear,
     /** @type {number|null} */ lastRowZ: null,
+    /** furthest coin z placed so far (brave rows put coins past their row) */
+    lastCoinZ: -Infinity,
     nextId: 1,
     cfg,
     rng,
@@ -40,6 +42,7 @@ export function updateTrack(track, playerZ, runTime, density = 1) {
   if (track.nextRowZ < playerZ) {
     track.nextRowZ = playerZ + cfg.startClear;
     track.lastRowZ = null;
+    track.lastCoinZ = -Infinity;
   }
   while (track.nextRowZ <= playerZ + cfg.spawnAhead) {
     spawnRow(track, track.nextRowZ, runTime);
@@ -59,15 +62,27 @@ function spawnRow(track, z, runTime) {
     const kind = KINDS[Math.floor(rng() * KINDS.length)];
     track.obstacles.push({ id: track.nextId++, kind, type: TYPE[kind], lane, z, hit: false });
   }
-  // A coin row in a lane this row leaves free leads the eye to the way through.
+  // Coin rows. Safe: a lane this row leaves free, leading the eye to the way through.
+  // Brave (after braveFrom s): the lane of an obstacle, so grabbing them means a late
+  // dodge (block) or a jump over it onto more coins (jump) - the near-miss line.
   if (rng() < cfg.coinRowChance) {
-    const free = lanes.slice(count);
-    const lane = free[Math.floor(rng() * free.length)];
-    const minZ = (track.lastRowZ ?? -Infinity) + COIN_LEAD;
-    for (let i = 0; i < cfg.coinRowLength; i++) {
-      const cz = z - COIN_LEAD - i * cfg.coinSpacing;
-      if (cz <= minZ) break;
-      track.coins.push({ id: track.nextId++, lane, z: cz, taken: false });
+    const brave = runTime >= cfg.braveFrom && rng() < cfg.braveChance;
+    const pool = brave ? lanes.slice(0, count) : lanes.slice(count);
+    const lane = pool[Math.floor(rng() * pool.length)];
+    const obstacle = track.obstacles.find((o) => o.z === z && o.lane === lane);
+    const minZ = Math.max((track.lastRowZ ?? -Infinity) + COIN_LEAD, track.lastCoinZ + cfg.coinSpacing);
+    /** @type {number[]} */ const zs = [];
+    if (brave && obstacle?.type === 'jump') {
+      // two leading in, the rest past the obstacle where the jump lands
+      for (let i = 1; i <= 2; i++) zs.push(z - COIN_LEAD - (i - 1) * cfg.coinSpacing);
+      for (let i = 1; zs.length < cfg.coinRowLength; i++) zs.push(z + 1 + i * cfg.coinSpacing);
+    } else {
+      for (let i = 0; i < cfg.coinRowLength; i++) zs.push(z - COIN_LEAD - i * cfg.coinSpacing);
+    }
+    for (const cz of zs) {
+      if (cz <= minZ) continue;
+      track.coins.push({ id: track.nextId++, lane, z: cz, rowZ: z, taken: false, ...(brave ? { brave: true } : {}) });
+      track.lastCoinZ = Math.max(track.lastCoinZ, cz);
     }
   }
 }
